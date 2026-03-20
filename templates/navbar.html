@@ -1,0 +1,51 @@
+<nav class="navbar navbar-dark" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="/" style="font-weight: 700; font-size: 1.3rem;">🪙 Crypto Exchange</a>
+    <div style="display: flex; align-items: center; gap: 15px;">
+      <a class="nav-link" href="/" style="color: white !important; margin: 0 5px;">Home</a>
+      <a class="nav-link" href="/markets" style="color: white !important; margin: 0 5px;">Market</a>
+      <div id="userNavActions" style="display: flex; align-items: center; gap: 15px;">
+        <!-- Login button (shown when not logged in) -->
+        <div id="loginSection">
+          <a href="/login" class="btn btn-outline-light btn-sm">Login</a>
+        </div>
+        
+        <!-- User info (shown when logged in) -->
+        <div id="userSection" style="display: none;">
+          <!-- <span class="user-badge" id="username" style="background: rgba(255, 255, 255, 0.2); padding: 8px 15px; border-radius: 20px; color: white; font-weight: 600; font-size: 0.9rem;"></span> -->
+          <a href="/profile" class="nav-link" style="color: white !important; margin: 5px 10px;">Profile</a>
+          <button class="btn btn-outline-light btn-sm" onclick="navLogout()">Logout</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</nav>
+<script>
+  // Initialize navbar with login status check
+  function initNavbar() {
+    const loginData = localStorage.getItem('loginData');
+    console.log("logindata", loginData);
+    if (loginData) {
+      try {
+        const user = JSON.parse(loginData);
+        document.getElementById('loginSection').style.display = 'none';
+        document.getElementById('userSection').style.display = 'flex';
+        document.getElementById('username').textContent = user.userName;
+      } catch (e) {
+        console.error('Invalid login data');
+      }
+    }
+  }
+
+  function navLogout() {
+    localStorage.removeItem('loginData');
+    window.location.reload();
+  }
+
+  // Load navbar on page load
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initNavbar);
+  } else {
+    initNavbar();
+  }
+</script>

@@ -1,0 +1,85 @@
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Exchange - Welcome</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/styles/style.css" rel="stylesheet">
+  </head>
+  <body class="index-page">
+    <!-- Navbar will be loaded here -->
+    <div id="navbar-container"></div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <div class="container-main">
+        <div class="row g-4">
+        <!-- Currencies Section -->
+        <div class="mt-5">
+          <h3 class="text-white text-center mb-4" style="font-weight: 700;">Supported Currencies</h3>
+          <div class="row g-4" id="currenciesContainer">
+            <p class="text-white text-center">Loading currencies...</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      // Load navbar from navbar.html
+      fetch('/navbar.html')
+        .then(response => response.text())
+        .then(html => {
+          const container = document.getElementById('navbar-container');
+          const fragment = document.createRange().createContextualFragment(html);
+          container.appendChild(fragment);
+        })
+        .catch(error => console.error('Error loading navbar:', error));
+
+      // Load and render currencies
+      async function loadCurrencies() {
+        try {
+          const response = await fetch('/seed/currencies.json');
+          const currencies = await response.json();
+
+          const crypto = currencies.filter(c => c.type === 'CRYPTO');
+          const fiat = currencies.filter(c => c.type === 'FIAT');
+
+          const renderList = (list, type) => list.map(c => `
+            <div class="list-group-item">
+              <div class="d-flex w-100 align-items-center justify-content-between">
+                <div class="flex-grow-1">
+                  <h6 class="mb-1">
+                    <span class="badge ${type === 'CRYPTO' ? 'bg-primary' : 'bg-warning text-dark'} me-2">${type}</span>
+                    <strong>${c.id}</strong> — ${c.name}
+                    ${type === 'CRYPTO' ? `<strong class="float-end">${c.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>` : ''}
+                  </h6>
+                </div>
+              </div>
+            </div>
+          `).join('');
+
+          document.getElementById('currenciesContainer').innerHTML = `
+            <div class="col-md-6">
+              <h5 class="text-white mb-3"><span class="badge bg-primary">CRYPTO</span> Cryptocurrencies</h5>
+              <div class="list-group">${renderList(crypto, 'CRYPTO')}</div>
+            </div>
+            <div class="col-md-6">
+              <h5 class="text-white mb-3"><span class="badge bg-warning text-dark">FIAT</span> Fiat Currencies</h5>
+              <div class="list-group">${renderList(fiat, 'FIAT')}</div>
+            </div>
+          `;
+        } catch (error) {
+          document.getElementById('currenciesContainer').innerHTML =
+            `<p class="text-white">Error loading currencies: ${error.message}</p>`;
+        }
+      }
+
+      // Run on page load
+      document.addEventListener('DOMContentLoaded', () => {
+        loadCurrencies();
+      });
+    </script>
+  </body>
+</html>

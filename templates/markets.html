@@ -1,0 +1,288 @@
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Market</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="/styles/style.css" rel="stylesheet">
+</head>
+
+<body class="bg-light">
+  <!-- Navbar will be loaded here -->
+  <div id="navbar-container"></div>
+
+  <div class="container-fluid py-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">Market Offers</h1>
+        <a href="/offer" class="btn btn-primary">Make an Offer</a>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="card mb-4 shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Filters</h5>
+        <div class="row g-3">
+          <!-- Buy/Sell Toggle -->
+          <div class="col-md-4">
+            <label class="form-label"><strong>Transaction Type</strong></label>
+            <div>
+              <div class="btn-group w-100" role="group">
+                <input type="radio" class="btn-check" name="transactionType" id="filterBuy" value="buy" checked>
+                <label class="btn btn-outline-success" for="filterBuy">Buy</label>
+
+                <input type="radio" class="btn-check" name="transactionType" id="filterSell" value="sell">
+                <label class="btn btn-outline-danger" for="filterSell">Sell</label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Currency Type Dropdown -->
+          <div class="col-md-4">
+            <label class="form-label" for="cryptoSelect"><strong>Cryptocurrency</strong></label>
+            <select class="form-select" id="cryptoSelect" onchange="applyFilters()">
+            </select>
+          </div>
+
+          <!-- Fiat Currency Dropdown -->
+          <div class="col-md-4">
+            <label class="form-label" for="fiatSelect"><strong>Fiat Currency</strong></label>
+            <select class="form-select" id="fiatSelect" onchange="applyFilters()">
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="offersContainer" class="text-center py-5">
+      <p class="text-muted">Loading offers...</p>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Load navbar from navbar.html
+    fetch('/navbar.html')
+      .then(response => response.text())
+      .then(html => {
+        const container = document.getElementById('navbar-container');
+        const fragment = document.createRange().createContextualFragment(html);
+        container.appendChild(fragment);
+      })
+      .catch(error => console.error('Error loading navbar:', error));
+
+    let allOffers = [];
+    let allCurrencies = [];
+
+    // Load currencies data
+    async function loadCurrencies() {
+      try {
+        const response = await fetch('/seed/currencies.json');
+        allCurrencies = await response.json();
+
+        // Populate dropdowns
+        const cryptoCurrencies = allCurrencies.filter(c => c.type === 'CRYPTO');
+        const fiatCurrencies = allCurrencies.filter(c => c.type === 'FIAT');
+
+        const cryptoSelect = document.getElementById('cryptoSelect');
+        const fiatSelect = document.getElementById('fiatSelect');
+
+        // Populate crypto dropdown
+        cryptoCurrencies.forEach(currency => {
+          const option = document.createElement('option');
+          option.value = currency.id;
+          option.textContent = `${currency.id} - ${currency.name}`;
+          cryptoSelect.appendChild(option);
+        });
+
+        // Populate fiat dropdown
+        fiatCurrencies.forEach(currency => {
+          const option = document.createElement('option');
+          option.value = currency.id;
+          option.textContent = `${currency.id} - ${currency.name}`;
+          fiatSelect.appendChild(option);
+        });
+
+        // Set default values
+        cryptoSelect.value = 'BTC';
+        fiatSelect.value = 'USD';
+      } catch (error) {
+        console.error('Error loading currencies:', error);
+      }
+    }
+
+    // Filter offers based on selected filters
+    function applyFilters() {
+      const transactionType = document.querySelector('input[name="transactionType"]:checked').value;
+      const selectedCrypto = document.getElementById('cryptoSelect').value;
+      const selectedFiat = document.getElementById('fiatSelect').value;
+
+      // Get current logged-in user ID
+      const loginData = localStorage.getItem('loginData');
+      const currentUserId = loginData ? JSON.parse(loginData).userId : null;
+
+      let filtered = allOffers.filter(offer => {
+        // Hide offers that belong to the logged-in user
+        if (currentUserId && offer.user_id === currentUserId) {
+          return false;
+        }
+
+        const isBuy = offer.type.toLowerCase() === 'buy';
+        const isSell = offer.type.toLowerCase() === 'sell';
+
+        // Check transaction type filter
+        let typeMatch = true;
+        if (transactionType === 'buy') {
+          typeMatch = isSell;
+        } else if (transactionType === 'sell') {
+          typeMatch = isBuy;
+        }
+
+        // Check currency filters
+        let currencyMatch = true;
+
+        if (selectedCrypto) {
+          // If a crypto is selected, either base or quote must be that crypto
+          currencyMatch = offer.crypto_currency_id === selectedCrypto;
+        }
+
+        if (selectedFiat && currencyMatch) {
+          // If a fiat is selected, either base or quote must be that fiat (and previous filter still applies)
+          currencyMatch = currencyMatch && (offer.fiat_currency_id === selectedFiat);
+        }
+
+        return typeMatch && currencyMatch;
+      });
+
+      renderOffers(filtered);
+    }
+
+    // Render offers based on current data
+    function renderOffers(offers) {
+      if (offers.length === 0) {
+        document.getElementById('offersContainer').innerHTML = '<p class="text-muted">No offers found matching your filters</p>';
+        return;
+      }
+
+      // Separate buy and sell offers
+      const buyOffers = offers.filter(offer => offer.type.toLowerCase() === 'buy');
+      const sellOffers = offers.filter(offer => offer.type.toLowerCase() === 'sell');
+
+      let html = '';
+
+      // Helper function to generate list items
+      const generateListItems = (offersArray, type) => {
+        return offersArray.map(offer => `
+            <div class="list-group-item">
+              <div class="d-flex w-100">
+                <div class="flex-grow-1">
+                  <div class="d-flex gap-4 mt-2">
+                    <span>
+                        <span class="badge ${offer.type === 'BUY' ? 'bg-danger' : 'bg-success'}">${offer.type === 'BUY' ? 'SELL' : 'BUY'}</span>
+                        <strong>${offer.crypto_currency_id} / ${offer.fiat_currency_id}</strong>
+                      </span>
+                    <strong class="text-muted ">
+                      ${offer.user.user_name || 'Unknown User'}
+                    </strong>
+                    
+                  </div>
+                  <div class="d-flex gap-4 mt-2">
+                    <small class="text-muted">
+                      <strong>Price:</strong> ${parseFloat(offer.price).toFixed(8)}
+                    </small>
+                    <small class="text-muted">
+                      <strong>Available:</strong> ${offer.available} ${offer.crypto_currency_id}
+                    </small>
+                    <small class="text-muted">
+                      <strong>Limit:</strong> ${offer.order_limit} ${offer.fiat_currency_id}
+                    </small>
+                    <small class="text-muted">
+                      <strong>Payment:</strong> ${offer.payment_method}
+                    </small>
+                  </div>
+                </div>
+                <button class="btn btn-sm ms-3 ${offer.type === 'BUY' ? 'btn-danger' : 'btn-success'}" 
+                  onclick="trade('${offer.id}')">${offer.type === 'BUY' ? 'SELL' : 'BUY'} ${offer.crypto_currency_id}</button>
+              </div>
+            </div>
+          `).join('');
+      };
+
+      // Build HTML with buy and sell sections
+      if (sellOffers.length > 0) {
+        html += `
+            <div class="mb-5">
+              <h3 class="mb-3">
+                <span class="badge bg-success">BUY OFFERS</span>
+              </h3>
+              <div class="list-group">
+                ${generateListItems(sellOffers, 'sell')}
+              </div>
+            </div>
+          `;
+      }
+
+      if (buyOffers.length > 0) {
+        html += `
+            <div class="mb-5">
+              <h3 class="mb-3">
+                <span class="badge bg-danger">SELL OFFERS</span>
+              </h3>
+              <div class="list-group">
+                ${generateListItems(buyOffers, 'buy')}
+              </div>
+            </div>
+          `;
+      }
+
+      document.getElementById('offersContainer').innerHTML = html;
+    }
+
+    // Reset filters to default
+    function resetFilters() {
+      document.getElementById('cryptoSelect').value = 'BTC';
+      document.getElementById('fiatSelect').value = 'USD';
+      applyFilters();
+    }
+
+    // Fetch and display offers
+    async function loadOffers() {
+      try {
+        const response = await fetch('/markets/api/data');
+        allOffers = await response.json();
+        console.log(allOffers);
+        
+        if (!Array.isArray(allOffers) || allOffers.length === 0) {
+          document.getElementById('offersContainer').innerHTML = '<p class="text-muted">No offers found</p>';
+          return;
+        }
+
+        applyFilters();
+      } catch (error) {
+        console.error('Error loading offers:', error);
+        document.getElementById('offersContainer').innerHTML = `
+            <div class="alert alert-danger" role="alert">
+              Error loading offers: ${error.message}
+            </div>
+          `;
+      }
+    }
+
+    function trade(offerId) {
+      window.location.href = `/trade/${offerId}`;
+    }
+
+    // Load offers when page loads
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadCurrencies();
+      await loadOffers();
+
+      // Add event listeners for filter changes
+      document.querySelectorAll('input[name="transactionType"]').forEach(radio => {
+        radio.addEventListener('change', applyFilters);
+      });
+    });
+  </script>
+</body>
+
+</html>

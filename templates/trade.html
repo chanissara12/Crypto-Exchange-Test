@@ -1,0 +1,293 @@
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trade - Crypto Exchange</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/styles/style.css" rel="stylesheet">
+  </head>
+  <body class="bg-light-gray">
+    <div id="navbar-container"></div>
+
+    <div class="container mt-4 mb-5">
+      <div id="content" class="loading"><p>Loading offer...</p></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      fetch('/navbar.html')
+        .then(r => r.text())
+        .then(html => {
+          const container = document.getElementById('navbar-container');
+          const fragment = document.createRange().createContextualFragment(html);
+          container.appendChild(fragment);
+        })
+        .catch(err => console.error('Error loading navbar:', err));
+
+      const offerId = window.location.pathname.split('/').pop();
+
+      async function loadTrade() {
+        try {
+          const loginData = localStorage.getItem('loginData');
+          const userId = loginData ? JSON.parse(loginData).userId : null;
+
+          const fetchList = [
+            fetch('/markets/api/data')
+          ];
+          if (userId) fetchList.push(fetch(`/trade/${offerId}/wallets?userId=${userId}`));
+
+          const results = await Promise.all(fetchList);
+          const offers = await results[0].json();
+          const walletData = userId ? await results[1].json() : null;
+
+          const offer = offers.find(o => o.id === offerId);
+          if (!offer) {
+            document.getElementById('content').innerHTML =
+              '<div class="alert alert-danger">Offer not found. <a href="/markets">Back to Market</a></div>';
+            return;
+          }
+
+          const traderName = offer.user ? offer.user.user_name : 'Unknown User';
+          const isBuy = offer.type === 'BUY';
+          const badgeClass = isBuy ? 'bg-danger' : 'bg-success';
+
+          // Determine what the taker spends and receives
+          // BUY offer → taker sells base, receives quote
+          // SELL offer → taker spends base (fiat), receives quote (crypto)
+          const takerSpend = offer.crypto_currency_id;
+          const takerReceive = offer.fiat_currency_id;
+
+          const walletBalances = walletData?.wallets || {};
+          const spendBalance = walletBalances[takerSpend] ?? null;
+          const receiveBalance = walletBalances[takerReceive] ?? null;
+
+          const walletCard = userId ? `
+            <div class="card mb-4">
+              <div class="card-header">💰 Your Wallet Balances</div>
+              <div class="card-body">
+                <div class="detail-row">
+                  <span class="detail-label">${takerSpend} <small class="text-muted">(you spend)</small></span>
+                  <span class="detail-value" id="walletSpend">
+                    ${spendBalance !== null ? parseFloat(spendBalance).toFixed(8) : '0.00000000'} ${takerSpend}
+                  </span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">${takerReceive} <small class="text-muted">(you receive)</small></span>
+                  <span class="detail-value" id="walletReceive">
+                    ${receiveBalance !== null ? parseFloat(receiveBalance).toFixed(8) : '0.00000000'} ${takerReceive}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ` : `
+            <div class="alert alert-warning">
+              <a href="/login">Login</a> to see your wallet balances and trade.
+            </div>
+          `;
+
+          document.getElementById('content').innerHTML = `
+            <div class="mb-3">
+              <a href="/markets" class="btn btn-outline-secondary btn-sm">← Back to Market</a>
+            </div>
+
+            <div class="trade-header">
+              <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                <div>
+                  <div class="pair-display mb-2">${offer.crypto_currency_id} / ${offer.fiat_currency_id}</div>
+                  <span class="badge ${badgeClass} fs-6 px-3 py-2">${offer.type === 'BUY' ? `Sell ${offer.crypto_currency_id}` : `Buy ${offer.crypto_currency_id}`}</span>
+                </div>
+                <div class="text-end">
+                  <div style="opacity:0.85; font-size:0.9rem;">Offered by</div>
+                  <div style="font-size:1.2rem; font-weight:700;">👤 ${traderName}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="row g-4">
+              <div class="col-lg-6">
+                <div class="card">
+                  <div class="card-header">📋 Offer Details</div>
+                  <div class="card-body">
+                    <div class="detail-row">
+                      <span class="detail-label">Price per unit</span>
+                      <span class="detail-value">${parseFloat(offer.price).toFixed(8)} ${offer.fiat_currency_id}</span>
+                    </div>
+                    <div class="detail-row">
+                      <span class="detail-label">Available</span>
+                      <span class="detail-value" id="offerAvailable">${parseFloat(offer.available).toFixed(8)} ${offer.crypto_currency_id}</span>
+                    </div>
+                    <div class="detail-row">
+                      <span class="detail-label">Order Limit</span>
+                      <span class="detail-value" id="offerLimit">${parseFloat(offer.order_limit).toFixed(8)} ${offer.fiat_currency_id}</span>
+                    </div>
+                    <div class="detail-row">
+                      <span class="detail-label">Payment Method</span>
+                      <span class="detail-value">${offer.payment_method.replace(/_/g, ' ')}</span>
+                    </div>
+                    <div class="detail-row">
+                      <span class="detail-label">Status</span>
+                      <span class="badge bg-success" id="offerStatus">${offer.status}</span>
+                    </div>
+                  </div>
+                </div>
+
+                ${walletCard}
+              </div>
+
+              <div class="col-lg-6">
+                <div class="card">
+                  <div class="card-header">💱 Place Trade</div>
+                  <div class="card-body">
+                    <div class="mb-3">
+                      <label class="form-label fw-semibold">Amount (${offer.crypto_currency_id})</label>
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="tradeAmount"
+                        placeholder="Enter amount"
+                        min="0"
+                        step="0.00000001"
+                        oninput="updateSummary()"
+                      >
+                      <div class="form-text" id="maxHint">Max: ${parseFloat(offer.available).toFixed(8)} ${offer.crypto_currency_id}</div>
+                    </div>
+
+                    <div class="summary-box" id="tradeSummary" style="display:none;">
+                      <div class="summary-row">
+                        <span>You spend</span>
+                        <span id="summarySpend">—</span>
+                      </div>
+                      <div class="summary-row">
+                        <span>Fee (0.1%)</span>
+                        <span id="summaryFee">—</span>
+                      </div>
+                      <div class="summary-row total">
+                        <span>You receive</span>
+                        <span id="summaryReceive">—</span>
+                      </div>
+                    </div>
+
+                    <button class="btn btn-trade mt-3" onclick="confirmTrade()">
+                      ${isBuy ? ' Sell' : '🟢 Buy'} ${offer.crypto_currency_id}
+                    </button>
+
+                    <div id="tradeAlert" class="mt-3"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+
+          window.currentOffer = offer;
+        } catch (err) {
+          document.getElementById('content').innerHTML =
+            `<div class="alert alert-danger">Error: ${err.message}. <a href="/markets">Back to Market</a></div>`;
+        }
+      }
+
+      function updateSummary() {
+        const amount = parseFloat(document.getElementById('tradeAmount').value);
+        const offer = window.currentOffer;
+        const summary = document.getElementById('tradeSummary');
+        if (!amount || amount <= 0) { summary.style.display = 'none'; return; }
+
+        const total = amount * offer.price;
+        const fee = total * 0.001;
+
+        document.getElementById('summarySpend').textContent = `${amount.toFixed(8)} ${offer.crypto_currency_id}`;
+        document.getElementById('summaryFee').textContent = `${fee.toFixed(8)} ${offer.fiat_currency_id}`;
+        document.getElementById('summaryReceive').textContent = `${(total - fee).toFixed(8)} ${offer.fiat_currency_id}`;
+
+        summary.style.display = 'block';
+      }
+
+      async function confirmTrade() {
+        const alertEl = document.getElementById('tradeAlert');
+        const loginData = localStorage.getItem('loginData');
+
+        if (!loginData) {
+          alertEl.innerHTML = '<div class="alert alert-warning">You must be <a href="/login">logged in</a> to trade.</div>';
+          return;
+        }
+
+        const amount = parseFloat(document.getElementById('tradeAmount').value);
+        const offer = window.currentOffer;
+        const { userId } = JSON.parse(loginData);
+
+        if (!amount || amount <= 0) {
+          alertEl.innerHTML = '<div class="alert alert-danger">Please enter a valid amount.</div>';
+          return;
+        }
+
+        const btn = document.querySelector('.btn-trade');
+        btn.disabled = true;
+        btn.textContent = 'Processing...';
+
+        try {
+          const response = await fetch(`/trade/${offer.id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, amount })
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            const total = amount * offer.price;
+            const fee = total * 0.001;
+
+            alertEl.innerHTML = `
+              <div class="alert alert-success">
+                ✅ Trade executed!<br>
+                <strong>Spent:</strong> ${amount.toFixed(8)} ${offer.crypto_currency_id}<br>
+                <strong>Received:</strong> ${(total - fee).toFixed(8)} ${offer.fiat_currency_id}<br>
+                <small class="text-muted">Fee: ${data.transaction.fee} ${offer.fiat_currency_id}</small>
+              </div>
+            `;
+
+            // Update offer display
+            offer.available = data.updatedOffer.available;
+            offer.order_limit = data.updatedOffer.order_limit;
+            offer.status = data.updatedOffer.status;
+
+            document.getElementById('offerAvailable').textContent = `${parseFloat(offer.available).toFixed(8)} ${offer.crypto_currency_id}`;
+            document.getElementById('offerLimit').textContent = `${parseFloat(offer.order_limit).toFixed(8)} ${offer.fiat_currency_id}`;
+            document.getElementById('maxHint').textContent = `Max: ${parseFloat(offer.available).toFixed(8)} ${offer.crypto_currency_id}`;
+
+            if (offer.status === 'CLOSED') {
+              document.getElementById('offerStatus').textContent = 'CLOSED';
+              document.getElementById('offerStatus').className = 'badge bg-secondary';
+              btn.textContent = 'Offer Closed';
+            } else {
+              btn.disabled = false;
+              btn.textContent = offer.type === 'BUY' ? ` Sell ${offer.crypto_currency_id}` : `🟢 Buy ${offer.crypto_currency_id}`;
+            }
+
+            // Update wallet balance display
+            if (data.updatedWallets) {
+              const wallets = data.updatedWallets;
+              const spendEl = document.getElementById('walletSpend');
+              const receiveEl = document.getElementById('walletReceive');
+              if (spendEl) spendEl.textContent = `${parseFloat(wallets[offer.crypto_currency_id] ?? 0).toFixed(8)} ${offer.crypto_currency_id}`;
+              if (receiveEl) receiveEl.textContent = `${parseFloat(wallets[offer.fiat_currency_id] ?? 0).toFixed(8)} ${offer.fiat_currency_id}`;
+            }
+
+            // Reset input and summary
+            document.getElementById('tradeAmount').value = '';
+            document.getElementById('tradeSummary').style.display = 'none';
+
+          } else {
+            alertEl.innerHTML = `<div class="alert alert-danger">❌ ${data.message}</div>`;
+            btn.disabled = false;
+            btn.textContent = offer.type === 'BUY' ? `🔴 Sell ${offer.crypto_currency_id}` : `🟢 Buy ${offer.crypto_currency_id}`;
+          }
+        } catch (err) {
+          alertEl.innerHTML = `<div class="alert alert-danger">❌ Network error: ${err.message}</div>`;
+          btn.disabled = false;
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', loadTrade);
+    </script>
+  </body>
+</html>

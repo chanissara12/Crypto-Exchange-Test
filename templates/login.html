@@ -1,0 +1,111 @@
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Crypto Exchange</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/styles/style.css" rel="stylesheet">
+  </head>
+  <body class="auth-page">
+    <div class="login-container">
+      <div class="card login-card">
+        <div class="card-body">
+          <div class="login-header">
+            <h2>🔐 Login</h2>
+            <p>Sign in to your crypto exchange account</p>
+          </div>
+
+          <div id="alertContainer"></div>
+
+          <form id="loginForm">
+            <div class="form-group">
+              <label for="email" class="form-label">Email Address</label>
+              <input 
+                type="email" 
+                class="form-control" 
+                id="email" 
+                name="email" 
+                placeholder="Enter your email"
+                required
+              >
+            </div>
+
+            <div class="form-group">
+              <label for="password" class="form-label">Password</label>
+              <input 
+                type="password" 
+                class="form-control" 
+                id="password" 
+                name="password" 
+                placeholder="Enter your password"
+                required
+              >
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-login">Login</button>
+          </form>
+
+          <div class="back-link">
+            <p>Don't have an account? <a href="/register">Register here</a></p>
+            <a href="/">← Back to Home</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const alertContainer = document.getElementById('alertContainer');
+
+        try {
+          const response = await fetch('/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, password })
+          });
+
+          const data = await response.json();
+          
+          if (data.success) {
+            // Save login data to localStorage
+            localStorage.setItem('loginData', JSON.stringify({
+              userId: data.userId,
+              email: data.email,
+              userName: data.userName
+            }));
+            
+            alertContainer.innerHTML = `
+              <div class="alert alert-success alert-dismissible fade show" role="alert">
+                Login successful! Redirecting to profile...
+              </div>
+            `;
+            setTimeout(() => {
+              window.location.href = '/profile';
+            }, 1500);
+          } else {
+            alertContainer.innerHTML = `
+              <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                ${data.message || 'Login failed. Please try again.'}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+            `;
+          }
+        } catch (error) {
+          alertContainer.innerHTML = `
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+              An error occurred: ${error.message}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          `;
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,38 @@
+[
+    {
+        "id": "BTC",
+        "name": "Bitcoin",
+        "type": "CRYPTO",
+        "price": 70375.72
+    },
+    {
+        "id": "ETH",
+        "name": "Ethereum",
+        "type": "CRYPTO",
+        "price": 2150.79
+    },
+    {
+        "id": "XRP",
+        "name": "Ripple",
+        "type": "CRYPTO",
+        "price": 1.45
+    },
+    {
+        "id": "DOGE",
+        "name": "Dogecoin",
+        "type": "CRYPTO",
+        "price": 0.09419
+    },
+    {
+        "id": "USD",
+        "name": "US Dollar",
+        "type": "FIAT",
+        "price": 1.0
+    },
+    {
+        "id": "THB",
+        "name": "Thai Baht",
+        "type": "FIAT",
+        "price": 35.0
+    }
+]
