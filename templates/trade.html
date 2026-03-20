@@ -54,8 +54,8 @@
           // Determine what the taker spends and receives
           // BUY offer → taker sells base, receives quote
           // SELL offer → taker spends base (fiat), receives quote (crypto)
-          const takerSpend = offer.crypto_currency_id;
-          const takerReceive = offer.fiat_currency_id;
+          const takerSpend = isBuy ? offer.crypto_currency_id : offer.fiat_currency_id;
+          const takerReceive = isBuy ? offer.fiat_currency_id : offer.crypto_currency_id;
 
           const walletBalances = walletData?.wallets || {};
           const spendBalance = walletBalances[takerSpend] ?? null;
@@ -140,18 +140,32 @@
                   <div class="card-body">
                     <div class="mb-3">
                       <label class="form-label fw-semibold">Amount (${offer.crypto_currency_id})</label>
+                      
                       <input
                         type="number"
                         class="form-control"
-                        id="tradeAmount"
+                        id="tradeAmountCrypto"
                         placeholder="Enter amount"
                         min="0"
                         step="0.00000001"
-                        oninput="updateSummary()"
+                        oninput="updateSummary('crypto')"
                       >
-                      <div class="form-text" id="maxHint">Max: ${parseFloat(offer.available).toFixed(8)} ${offer.crypto_currency_id}</div>
+                      <div class="form-text" id="maxHintCrypto">Max: ${parseFloat(offer.available).toFixed(8)} ${offer.crypto_currency_id}</div>
                     </div>
-
+                    <div class="mb-3">
+                      <label class="form-label fw-semibold">Amount (${offer.fiat_currency_id})</label>
+                      
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="tradeAmountFiat"
+                        placeholder="Enter amount"
+                        min="0"
+                        step="0.00000001"
+                        oninput="updateSummary('fiat')"
+                      >
+                      <div class="form-text" id="maxHintFiat">Max: ${parseFloat(offer.order_limit).toFixed(8)} ${offer.fiat_currency_id}</div>
+                    </div>
                     <div class="summary-box" id="tradeSummary" style="display:none;">
                       <div class="summary-row">
                         <span>You spend</span>
@@ -185,18 +199,47 @@
         }
       }
 
-      function updateSummary() {
-        const amount = parseFloat(document.getElementById('tradeAmount').value);
+      function updateSummary(source) {
+        const cryptoInput = document.getElementById('tradeAmountCrypto');
+        const fiatInput = document.getElementById('tradeAmountFiat');
         const offer = window.currentOffer;
         const summary = document.getElementById('tradeSummary');
-        if (!amount || amount <= 0) { summary.style.display = 'none'; return; }
 
-        const total = amount * offer.price;
-        const fee = total * 0.001;
+        let amountCrypto = parseFloat(cryptoInput.value);
+        let amountFiat = parseFloat(fiatInput.value);
 
-        document.getElementById('summarySpend').textContent = `${amount.toFixed(8)} ${offer.crypto_currency_id}`;
-        document.getElementById('summaryFee').textContent = `${fee.toFixed(8)} ${offer.fiat_currency_id}`;
-        document.getElementById('summaryReceive').textContent = `${(total - fee).toFixed(8)} ${offer.fiat_currency_id}`;
+        if (source === 'crypto') {
+          if (!isNaN(amountCrypto) && amountCrypto > 0) {
+            amountFiat = amountCrypto * offer.price;
+            fiatInput.value = amountFiat.toFixed(8);
+          } else {
+            fiatInput.value = '';
+          }
+        } else if (source === 'fiat') {
+          if (!isNaN(amountFiat) && amountFiat > 0) {
+            amountCrypto = amountFiat / offer.price;
+            cryptoInput.value = amountCrypto.toFixed(8);
+          } else {
+            cryptoInput.value = '';
+          }
+        }
+
+        if (isNaN(amountCrypto) || amountCrypto <= 0) { summary.style.display = 'none'; return; }
+
+        const isBuy = offer.type === 'BUY';
+        const total = amountCrypto * offer.price;
+
+        if (isBuy) {
+          const fee = total * 0.001;
+          document.getElementById('summarySpend').textContent = `${amountCrypto.toFixed(8)} ${offer.crypto_currency_id}`;
+          document.getElementById('summaryFee').textContent = `${fee.toFixed(8)} ${offer.fiat_currency_id}`;
+          document.getElementById('summaryReceive').textContent = `${(total - fee).toFixed(8)} ${offer.fiat_currency_id}`;
+        } else {
+          const fee = amountCrypto * 0.001; // Fee in crypto when receiving crypto
+          document.getElementById('summarySpend').textContent = `${total.toFixed(8)} ${offer.fiat_currency_id}`;
+          document.getElementById('summaryFee').textContent = `${fee.toFixed(8)} ${offer.crypto_currency_id}`;
+          document.getElementById('summaryReceive').textContent = `${(amountCrypto - fee).toFixed(8)} ${offer.crypto_currency_id}`;
+        }
 
         summary.style.display = 'block';
       }
@@ -210,7 +253,7 @@
           return;
         }
 
-        const amount = parseFloat(document.getElementById('tradeAmount').value);
+        const amount = parseFloat(document.getElementById('tradeAmountCrypto').value);
         const offer = window.currentOffer;
         const { userId } = JSON.parse(loginData);
 
@@ -234,14 +277,27 @@
 
           if (data.success) {
             const total = amount * offer.price;
-            const fee = total * 0.001;
+            const isBuy = offer.type === 'BUY';
+            let spentStr, receivedStr, feeStr;
+            
+            if (isBuy) {
+              const fee = total * 0.001;
+              spentStr = `${amount.toFixed(8)} ${offer.crypto_currency_id}`;
+              receivedStr = `${(total - fee).toFixed(8)} ${offer.fiat_currency_id}`;
+              feeStr = `${data.transaction.fee} ${offer.fiat_currency_id}`;
+            } else {
+              const fee = amount * 0.001;
+              spentStr = `${total.toFixed(8)} ${offer.fiat_currency_id}`;
+              receivedStr = `${(amount - fee).toFixed(8)} ${offer.crypto_currency_id}`;
+              feeStr = `${data.transaction.fee} ${offer.crypto_currency_id}`;
+            }
 
             alertEl.innerHTML = `
               <div class="alert alert-success">
                 ✅ Trade executed!<br>
-                <strong>Spent:</strong> ${amount.toFixed(8)} ${offer.crypto_currency_id}<br>
-                <strong>Received:</strong> ${(total - fee).toFixed(8)} ${offer.fiat_currency_id}<br>
-                <small class="text-muted">Fee: ${data.transaction.fee} ${offer.fiat_currency_id}</small>
+                <strong>Spent:</strong> ${spentStr}<br>
+                <strong>Received:</strong> ${receivedStr}<br>
+                <small class="text-muted">Fee: ${feeStr}</small>
               </div>
             `;
 
@@ -252,7 +308,8 @@
 
             document.getElementById('offerAvailable').textContent = `${parseFloat(offer.available).toFixed(8)} ${offer.crypto_currency_id}`;
             document.getElementById('offerLimit').textContent = `${parseFloat(offer.order_limit).toFixed(8)} ${offer.fiat_currency_id}`;
-            document.getElementById('maxHint').textContent = `Max: ${parseFloat(offer.available).toFixed(8)} ${offer.crypto_currency_id}`;
+            document.getElementById('maxHintCrypto').textContent = `Max: ${parseFloat(offer.available).toFixed(8)} ${offer.crypto_currency_id}`;
+            document.getElementById('maxHintFiat').textContent = `Max: ${parseFloat(offer.order_limit).toFixed(8)} ${offer.fiat_currency_id}`;
 
             if (offer.status === 'CLOSED') {
               document.getElementById('offerStatus').textContent = 'CLOSED';
@@ -273,7 +330,8 @@
             }
 
             // Reset input and summary
-            document.getElementById('tradeAmount').value = '';
+            document.getElementById('tradeAmountCrypto').value = '';
+            document.getElementById('tradeAmountFiat').value = '';
             document.getElementById('tradeSummary').style.display = 'none';
 
           } else {

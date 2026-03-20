@@ -72,7 +72,7 @@ router.post('/:id', async (req, res) => {
 
         const total = parseFloat((qty * offer.price).toFixed(8));
         const FEE_RATE = 0.001;
-        const fee = parseFloat((total * FEE_RATE).toFixed(8));
+        let fee = parseFloat((total * FEE_RATE).toFixed(8));
 
         if (total > offer.order_limit) {
             await t.rollback();
@@ -86,10 +86,18 @@ router.post('/:id', async (req, res) => {
 
         let takerSpendCurrency, takerSpendAmount, takerReceiveCurrency, takerReceiveAmount;
 
-        takerSpendCurrency = offer.crypto_currency_id;
-        takerSpendAmount = qty;
-        takerReceiveCurrency = offer.fiat_currency_id;
-        takerReceiveAmount = parseFloat((total - fee).toFixed(8));
+        if (offer.type === 'BUY') {
+            takerSpendCurrency = offer.crypto_currency_id;
+            takerSpendAmount = qty;
+            takerReceiveCurrency = offer.fiat_currency_id;
+            takerReceiveAmount = parseFloat((total - fee).toFixed(8));
+        } else {
+            takerSpendCurrency = offer.fiat_currency_id;
+            takerSpendAmount = total;
+            takerReceiveCurrency = offer.crypto_currency_id;
+            fee = parseFloat((qty * FEE_RATE).toFixed(8)); // Adjust fee to be deducted from crypto received
+            takerReceiveAmount = parseFloat((qty - fee).toFixed(8));
+        }
 
         // Check taker has enough balance
         const [spendWallet] = await Wallet.findOrCreate({
