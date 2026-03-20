@@ -20,7 +20,7 @@ const marketRoutes = require('./routes/markets');
 const profileRoutes = require('./routes/profile');
 const tradeRoutes = require('./routes/trade');
 const offerRoutes = require('./routes/offer');
-// const productRoutes = require('./routes/products'); // สมมติว่ามีอีกไฟล์
+const depositRoutes = require('./routes/deposit');
 
 // 2. นำ Router มาผูกกับ Path หลัก
 app.use('/login', loginRoutes);
@@ -29,8 +29,7 @@ app.use('/profile', profileRoutes);
 app.use('/markets', marketRoutes);
 app.use('/trade', tradeRoutes);
 app.use('/offer', offerRoutes);
-
-// app.use('/products', productRoutes);
+app.use('/deposit', depositRoutes);
 
 // Route พื้นฐานของหน้าหลัก
 app.get('/', (req, res) => {

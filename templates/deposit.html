@@ -1,0 +1,128 @@
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deposit - Crypto Exchange</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/styles/style.css" rel="stylesheet">
+  </head>
+  <body class="bg-light-gray">
+    <div id="navbar-container"></div>
+
+    <div class="container mt-5 mb-5" id="main-container" style="display: none;">
+      <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+          <div class="mb-3">
+            <a href="/markets" class="btn btn-outline-secondary btn-sm">← Back to Market</a>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              💵 Deposit
+            </div>
+            <div class="card-body p-4">
+              <div id="alertContainer"></div>
+              
+              <form id="depositForm">
+                <div class="mb-3">
+                  <label for="fiat_currency" class="form-label">Currency</label>
+                  <select class="form-select" id="fiat_currency" required>
+                    <option value="">Loading...</option>
+                  </select>
+                </div>
+
+                <div class="mb-4">
+                  <label for="amount" class="form-label">Amount</label>
+                  <input type="number" class="form-control" id="amount" placeholder="Enter amount to deposit" step="0.01" min="0.01" required>
+                </div>
+
+                <button type="submit" class="btn btn-success w-100" id="submitBtn">Deposit</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      fetch('/navbar.html')
+        .then(response => response.text())
+        .then(html => {
+          const container = document.getElementById('navbar-container');
+          const fragment = document.createRange().createContextualFragment(html);
+          container.appendChild(fragment);
+        })
+        .catch(error => console.error('Error loading navbar:', error));
+
+      document.addEventListener('DOMContentLoaded', async () => {
+        const loginData = localStorage.getItem('loginData');
+        
+        if (!loginData) {
+          window.location.href = '/login';
+          return;
+        }
+        
+        const { userId } = JSON.parse(loginData);
+        document.getElementById('main-container').style.display = 'block';
+
+        try {
+          const response = await fetch('/seed/currencies.json');
+          const currencies = await response.json();
+          
+          const fiatSelect = document.getElementById('fiat_currency');
+          fiatSelect.innerHTML = '';
+
+          currencies.forEach(c => {
+            if (c.type === 'FIAT') {
+              fiatSelect.add(new Option(`${c.id} - ${c.name}`, c.id));
+            }
+          });
+        } catch (error) {
+          console.error('Failed to load currencies:', error);
+        }
+
+        document.getElementById('depositForm').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          
+          const alertContainer = document.getElementById('alertContainer');
+          const btn = document.getElementById('submitBtn');
+          
+          const payload = {
+            userId: userId,
+            currencyId: document.getElementById('fiat_currency').value,
+            amount: parseFloat(document.getElementById('amount').value)
+          };
+
+          btn.disabled = true;
+          btn.textContent = 'Processing...';
+
+          try {
+            const response = await fetch('/deposit', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+              alertContainer.innerHTML = '<div class="alert alert-success">✅ Deposit successful! Redirecting to profile...</div>';
+              setTimeout(() => {
+                window.location.href = '/profile';
+              }, 1500);
+            } else {
+              alertContainer.innerHTML = `<div class="alert alert-danger">❌ ${data.message || 'Failed to deposit'}</div>`;
+              btn.disabled = false;
+              btn.textContent = 'Deposit';
+            }
+          } catch (error) {
+            alertContainer.innerHTML = `<div class="alert alert-danger">❌ Network error: ${error.message}</div>`;
+            btn.disabled = false;
+            btn.textContent = 'Deposit';
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
